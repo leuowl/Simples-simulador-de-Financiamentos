@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Financiamento Avançado</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eceff1; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        .grid-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .input-group label { display: block; font-size: 0.9em; margin-bottom: 5px; color: #666; }
+        .input-group input, .input-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .amortizacao-box { background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 5px solid #3498db; margin-bottom: 20px; }
+        button { width: 100%; padding: 15px; background: #27ae60; color: white; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #219150; }
+        .summary { margin-top: 25px; padding: 15px; background: #e8f4fd; border-radius: 8px; line-height: 1.6; }
+        .table-container { margin-top: 30px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #34495e; color: white; }
+        tr:nth-child(even) { background: #f2f2f2; }
+        .highlight-amort { background: #d4edda !important; font-weight: bold; }
+        .quitado { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simulador de Financiamento</h1>
+
+        <div class="grid-inputs">
+            <div class="input-group">
+                <label>Valor Total do Veículo (R$):</label>
+                <input type="number" id="valorTotal" value="60000">
+            </div>
+            <div class="input-group">
+                <label>Valor da Entrada (R$):</label>
+                <input type="number" id="valorEntrada" value="10000">
+            </div>
+            <div class="input-group">
+                <label>Taxa de Juros Mensal (%):</label>
+                <input type="number" id="taxaJuros" value="1.5" step="0.01">
+            </div>
+            <div class="input-group">
+                <label>Número de Parcelas:</label>
+                <input type="number" id="numParcelas" value="48">
+            </div>
+        </div>
+
+        <div class="amortizacao-box">
+            <h3>Configurar Amortização Extra</h3>
+            <div class="grid-inputs">
+                <div class="input-group">
+                    <label>Valor Extra (R$):</label>
+                    <input type="number" id="valorAmortizacao" value="5000">
+                </div>
+                <div class="input-group">
+                    <label>No Mês nº:</label>
+                    <input type="number" id="mesAmortizacao" value="6">
+                </div>
+                <div class="input-group">
+                    <label>Tipo:</label>
+                    <select id="tipoAmortizacao">
+                        <option value="reduzirPrazo">Reduzir Tempo (Prazo)</option>
+                        <option value="reduzirParcela">Reduzir Valor Mensal</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button id="calcularBtn">Simular e Gerar Tabela</button>
+
+        <div class="summary" id="resumo">
+            </div>
+
+        <div class="table-container">
+            <table id="tabelaEvolucao">
+                <thead>
+                    <tr>
+                        <th>Mês</th>
+                        <th>Parcela Original</th>
+                        <th>Saldo Original</th>
+                        <th>Nova Parcela</th>
+                        <th>Novo Saldo</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="corpoTabela">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+        document.getElementById('calcularBtn').addEventListener('click', function() {
+        const valorTotal = parseFloat(document.getElementById('valorTotal').value);
+        const entrada = parseFloat(document.getElementById('valorEntrada').value);
+        const taxaMensal = parseFloat(document.getElementById('taxaJuros').value) / 100;
+        const meses = parseInt(document.getElementById('numParcelas').value);
+        
+        const valorAmortizacao = parseFloat(document.getElementById('valorAmortizacao').value);
+        const mesAmort = parseInt(document.getElementById('mesAmortizacao').value);
+        const tipoAmort = document.getElementById('tipoAmortizacao').value;
+
+        const valorFinanciado = valorTotal - entrada;
+        if(valorFinanciado <= 0) return alert("A entrada não pode ser maior que o valor total.");
+
+        const parcelaOriginal = valorFinanciado * (taxaMensal / (1 - Math.pow(1 + taxaMensal, -meses)));
+        
+        let saldoOriginal = valorFinanciado;
+        let saldoNovo = valorFinanciado;
+        let parcelaNova = parcelaOriginal;
+        let totalJurosOriginal = 0;
+        let totalJurosNovo = 0;
+        let quitadoEm = meses;
+
+        const corpoTabela = document.getElementById('corpoTabela');
+        corpoTabela.innerHTML = "";
+
+        for (let i = 1; i <= meses; i++) {
+
+            let jurosOriginal = saldoOriginal * taxaMensal;
+            let amortizacaoOriginal = parcelaOriginal - jurosOriginal;
+            totalJurosOriginal += jurosOriginal;
+            saldoOriginal -= amortizacaoOriginal;
+
+            let jurosNovo = Math.max(0, saldoNovo * taxaMensal);
+            totalJurosNovo += jurosNovo;
+            
+            let amortizacaoMes = parcelaNova - jurosNovo;
+            
+            if (i === mesAmort) {
+                amortizacaoMes += valorAmortizacao;
+            }
+
+            saldoNovo -= amortizacaoMes;
+
+            if (saldoNovo < 0) {
+                if (quitadoEm === meses) quitadoEm = i;
+                saldoNovo = 0;
+                parcelaNova = 0;
+            }
+
+            if (i === mesAmort && tipoAmort === "reduzirParcela" && saldoNovo > 0) {
+                parcelaNova = saldoNovo * (taxaMensal / (1 - Math.pow(1 + taxaMensal, -(meses - i))));
+            }
+
+            const row = corpoTabela.insertRow();
+
+            if (i === mesAmort) row.className = "highlight-amort";
+            
+            row.innerHTML = `
+                <td>${i}</td>
+                <td>R$ ${parcelaOriginal.toFixed(2)}</td>
+                <td>R$ ${Math.max(0, saldoOriginal).toFixed(2)}</td>
+                <td>R$ ${parcelaNova > 0 ? parcelaNova.toFixed(2) : '---'}</td>
+                <td>R$ ${saldoNovo.toFixed(2)}</td>
+                <td>${saldoNovo <= 0 && i >= quitadoEm ? '<span class="quitado">QUITADO</span>' : 'Ativo'}</td>
+            `;
+
+            if (saldoNovo <= 0 && saldoOriginal <= 0) break;
+        }
+
+        const economiaJuros = totalJurosOriginal - totalJurosNovo;
+        document.getElementById('resumo').innerHTML = `
+            <strong>Resumo da Simulação:</strong><br>
+            • Valor Financiado: R$ ${valorFinanciado.toFixed(2)}<br>
+            • Total de Juros Original: R$ ${totalJurosOriginal.toFixed(2)}<br>
+            • Total de Juros após Amortização: R$ ${totalJurosNovo.toFixed(2)}<br>
+            • <strong>Economia Real: R$ ${economiaJuros.toFixed(2)}</strong><br>
+            • Prazo original: ${meses} meses | Novo prazo: ${quitadoEm} meses.
+        `;
+    });
+    </script>
+</body>
+</html>
